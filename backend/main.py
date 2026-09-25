@@ -55,3 +55,12 @@ app.include_router(
     prefix="/analytics",   # same prefix as the other analytics routers
     tags=["Guest Revenue"],
 )
+
+#For Reservations Forecast tab
+from postgres.reservation_forecast import router as reservation_forecast_router
+
+app.include_router(
+    reservation_forecast_router,
+    prefix="/analytics",   # same prefix as the other analytics routers
+    tags=["Reservations Forecast"],
+)

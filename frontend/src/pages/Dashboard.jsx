@@ -74,6 +74,9 @@ import OverviewTab from "./OverviewTab";
 // New vs Repeat Guest Revenue — its own tab (not nested inside Marketing)
 import GuestRevenueTab from "./GuestRevenueTab";
 
+// Reservations Forecast — imported "Summary of Reservations Forecast" workbook
+import ForecastTab from "./forecast/ForecastTab";
+
 /* ─── Sidebar nav config ─────────────────────────────────────── */
 const TABS = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -86,6 +89,7 @@ const TABS = [
   { id: "villa_fees", label: "Annual Fees", Icon: Home },
   { id: "guest_revenue", label: "Guest Revenue", Icon: TrendingUp },
   { id: "lead_time", label: "Lead Time", Icon: Clock },
+  { id: "forecast", label: "Reservations Forecast", Icon: CalendarClock },
 ];
 
 const SUB = {
@@ -102,6 +106,8 @@ const SUB = {
     "New vs repeat guest revenue — trends by month and summary averages",
   lead_time:
     "Booking confirmed vs arrival date — full detail, trends and averages",
+  forecast:
+    "Nights and revenue on the books, live from bookings: projections and period comparisons",
 };
 
 /* ─── Recharts shared props ──────────────────────────────────── */
@@ -610,6 +616,12 @@ export default function Dashboard() {
         {activeTab === "lead_time" && (
           <ErrorBoundary title="Lead Time">
             <Leadtimetab />
+          </ErrorBoundary>
+        )}
+        {/* ════ RESERVATIONS FORECAST ════ */}
+        {activeTab === "forecast" && (
+          <ErrorBoundary title="Reservations Forecast">
+            <ForecastTab />
           </ErrorBoundary>
         )}
         {/* ════ REPORTS ════ */}

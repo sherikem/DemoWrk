@@ -2139,13 +2139,176 @@ def scrape_member_statements_only(page, member_number, member_id,
     return False, saved
 
 # ─────────────────────────────────────────────
+# ROOMS-ONLY MEMBER SCRAPE
+# ─────────────────────────────────────────────
+def scrape_member_rooms_only(page, member_number, member_id,
+                             prefix="", status=None):
+    """
+    Targeted mode: navigate to the member and pull ONLY Member_Info >
+    Rooms (+ the per-night Rate Details fetched while each reservation
+    popup is open — see scrape_reservation_rate_details()). Skips
+    Services and Statements entirely. NOT guest-gated: Rooms applies to
+    guest accounts too, same as the full scrape_member().
+    """
+    if status is None:
+        status = {}
+    status.setdefault("rooms", "failed")
+
+    folder_name = get_folder_name(member_number, member_id)
+    saved = {}
+
+    dismiss_popup(page)
+    if not navigate_to_member(page, member_id, prefix):
+        print(f"  {prefix}Navigation failed for {member_number}")
+        return False, saved
+
+    shell = get_shell_frame(page, timeout_ms=FRAME_TIMEOUT)
+    if not shell:
+        print(f"  {prefix}Shell frame not found for {member_number}")
+        take_screenshot(page, f"no_shell_{folder_name}")
+        return False, saved
+
+    for attempt in range(1, TAB_MAX_RETRIES + 1):
+        note = f" (attempt {attempt}/{TAB_MAX_RETRIES})" if attempt > 1 else ""
+        print(f"    {prefix}Rooms{note}")
+
+        shell = get_shell_frame(page, timeout_ms=FRAME_TIMEOUT)
+        if not shell:
+            print(f"    {prefix}Shell lost — re-navigating to member")
+            if not navigate_to_member(page, member_id, prefix):
+                return False, saved
+            shell = get_shell_frame(page, timeout_ms=FRAME_TIMEOUT)
+            if not shell:
+                return False, saved
+
+        open_member_dropdown(shell, page)
+        click_section(shell, page, "Member_Info")
+        if not click_subtab(shell, page, "rooms", TAB_HREF_FALLBACKS["rooms"], prefix):
+            take_screenshot(page, f"no_tab_{folder_name}_rooms")
+            if attempt < TAB_MAX_RETRIES:
+                page.wait_for_timeout(1000 * attempt)
+            continue
+
+        rooms_success, room_rows, merged_contact, rate_rows = \
+            scrape_rooms_with_popups(page, folder_name, prefix)
+        if not rooms_success:
+            print(f"    {prefix}Rooms scraping failed")
+            if attempt < TAB_MAX_RETRIES:
+                page.wait_for_timeout(1000 * attempt)
+                continue
+            return False, saved
+
+        if room_rows:
+            fp = save_tab_csv(folder_name, "rooms", room_rows)
+            if fp:
+                saved["rooms"] = fp
+                print(f"    {prefix}Rooms: {len(room_rows)} row(s) → {os.path.basename(fp)}")
+            else:
+                print(f"    {prefix}Rooms CSV could not be saved")
+                return False, saved
+            if merged_contact:
+                enrich_profile_csv(folder_name, merged_contact, prefix)
+            if rate_rows:
+                fp = save_tab_csv(folder_name, "rate_details", rate_rows)
+                if fp:
+                    saved["rate_details"] = fp
+                    print(f"    {prefix}Rate details: {len(rate_rows)} night row(s) → {os.path.basename(fp)}")
+                else:
+                    print(f"    {prefix}Rate details CSV could not be saved")
+        else:
+            print(f"    {prefix}Rooms: no data — processed successfully")
+
+        status["rooms"] = "ok"
+        return True, saved
+
+    print(f"    {prefix}Rooms: exhausted retries")
+    return False, saved
+
+# ─────────────────────────────────────────────
+# SERVICES-ONLY MEMBER SCRAPE
+# ─────────────────────────────────────────────
+def scrape_member_services_only(page, member_number, member_id,
+                                prefix="", status=None):
+    """
+    Targeted mode: navigate to the member and pull ONLY Billing >
+    Services. Skips Rooms and Statements entirely. Guest accounts are
+    skipped, same as the full scrape_member() (services only apply to
+    Members).
+    """
+    if status is None:
+        status = {}
+    status.setdefault("services", "failed")
+
+    folder_name = get_folder_name(member_number, member_id)
+    saved = {}
+
+    dismiss_popup(page)
+    if not navigate_to_member(page, member_id, prefix):
+        print(f"  {prefix}Navigation failed for {member_number}")
+        return False, saved
+
+    if is_guest_folder(folder_name):
+        print(f"    {prefix}Services: skipped (guest account)")
+        status["services"] = "skipped"
+        return True, saved
+
+    for attempt in range(1, TAB_MAX_RETRIES + 1):
+        note = f" (attempt {attempt}/{TAB_MAX_RETRIES})" if attempt > 1 else ""
+        print(f"    {prefix}Services{note}")
+
+        shell = get_shell_frame(page, timeout_ms=FRAME_TIMEOUT)
+        if not shell:
+            print(f"    {prefix}Shell lost — re-navigating to member")
+            if not navigate_to_member(page, member_id, prefix):
+                return False, saved
+            shell = get_shell_frame(page, timeout_ms=FRAME_TIMEOUT)
+            if not shell:
+                return False, saved
+
+        open_member_dropdown(shell, page)
+        click_section(shell, page, "Billing")
+        if not click_subtab(shell, page, "members_enrolled_services", TAB_HREF_FALLBACKS["services"], prefix):
+            take_screenshot(page, f"no_tab_{folder_name}_services")
+            if attempt < TAB_MAX_RETRIES:
+                page.wait_for_timeout(1000 * attempt)
+            continue
+
+        services_success, service_rows = scrape_services(page, folder_name, prefix)
+        if not services_success:
+            print(f"    {prefix}Services scraping failed")
+            if attempt < TAB_MAX_RETRIES:
+                page.wait_for_timeout(1000 * attempt)
+                continue
+            return False, saved
+
+        if service_rows:
+            fp = save_tab_csv(folder_name, "services", service_rows)
+            if fp:
+                saved["services"] = fp
+                print(f"    {prefix}Services: {len(service_rows)} row(s) → {os.path.basename(fp)}")
+        else:
+            print(f"    {prefix}Services: no data — processed successfully")
+
+        status["services"] = "ok"
+        return True, saved
+
+    return False, saved
+
+# ─────────────────────────────────────────────
 # WORKER
 # ─────────────────────────────────────────────
 def _worker_init():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+SCRAPE_FN_BY_MODE = {
+    "full":       scrape_member,
+    "statements": scrape_member_statements_only,
+    "rooms":      scrape_member_rooms_only,
+    "services":   scrape_member_services_only,
+}
+
 def scrape_chunk(args):
-    members_chunk, worker_id, force, statements_only = args
+    members_chunk, worker_id, force, mode = args
     time.sleep(worker_id * 3)
     prefix   = f"[W{worker_id}] "
     results  = {"success": [], "failed": [], "skipped": [], "incomplete": []}
@@ -2188,8 +2351,7 @@ def scrape_chunk(args):
                     results["skipped"].append(folder_name)
                     continue
 
-                scrape_fn = (scrape_member_statements_only
-                             if statements_only else scrape_member)
+                scrape_fn = SCRAPE_FN_BY_MODE[mode]
                 status = {}
                 success, saved = scrape_fn(page, member_number, member_id,
                                            prefix, status)
@@ -2214,10 +2376,12 @@ def scrape_chunk(args):
                         if v not in ("ok", "skipped")
                     )
 
-                    # statements-only runs never mark done: a member
-                    # first touched in this mode still needs a full
-                    # Rooms/Services pass in a future normal run.
-                    if statements_only:
+                    # Targeted (--statements-only/--rooms-only/
+                    # --services-only) runs never mark done: a member
+                    # first touched in one of these modes still needs a
+                    # full pass covering the other tabs in a future
+                    # normal run.
+                    if mode != "full":
                         pass
                     elif unresolved:
                         log_incomplete(member_number, member_id, status)
@@ -2266,11 +2430,26 @@ def main():
     parser.add_argument("--statements-only", action="store_true",
                         help="Skip Rooms and Services; scrape only "
                              "Billing > Statements (+ details)")
+    parser.add_argument("--rooms-only", action="store_true",
+                        help="Skip Services and Statements; scrape only "
+                             "Member_Info > Rooms (+ rate details)")
+    parser.add_argument("--services-only", action="store_true",
+                        help="Skip Rooms and Statements; scrape only "
+                             "Billing > Services")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
                         help=f"Parallel workers (default: {DEFAULT_WORKERS})")
     parser.add_argument("--reset",   action="store_true",
                         help="Clear done log and rescrape everything")
     args = parser.parse_args()
+
+    only_flags = [args.statements_only, args.rooms_only, args.services_only]
+    if sum(only_flags) > 1:
+        parser.error("--statements-only, --rooms-only and --services-only "
+                      "are mutually exclusive")
+    mode = ("statements" if args.statements_only else
+            "rooms" if args.rooms_only else
+            "services" if args.services_only else
+            "full")
 
     if not os.path.exists(MAP_FILE):
         print(f"ERROR: {MAP_FILE} not found. Run build_member_map.py first.")
@@ -2319,15 +2498,16 @@ def main():
     print("=" * 60)
     print(f"Members to process : {len(members)}")
     print(f"Output             : {JOURNAL_FOLDER}")
+    print(f"Mode               : {mode}")
 
     if len(members) == 1 or args.workers == 1:
-        print("Mode               : single worker\n")
-        all_results = [scrape_chunk((members, 1, force, args.statements_only))]
+        print("Workers            : single\n")
+        all_results = [scrape_chunk((members, 1, force, mode))]
     else:
         num_workers = min(args.workers, len(members))
         chunk_size  = math.ceil(len(members) / num_workers)
         chunks = [
-            (members[i: i + chunk_size], wid, force, args.statements_only)
+            (members[i: i + chunk_size], wid, force, mode)
             for wid, i in enumerate(range(0, len(members), chunk_size), 1)
         ]
         print(f"Workers            : {num_workers}")
