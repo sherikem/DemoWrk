@@ -37,6 +37,15 @@ step that had nothing to classify for that batch). Requiring payment_type =
 2020-2021's real revenue; nights never filtered on payment_type at all, so
 this keeps revenue consistent with that.
 
+REVENUE ALSO FILTERS ON status (see _revenue_filter()): Posted-only for
+fully completed past months, Unposted-only for the current month onward.
+A night's charge only posts at checkout, so every future night AND the
+current month's nights (mostly still mid-stay) are 100% Unposted — checked
+directly. Requiring Posted everywhere would show $0 for the whole current
+month and every future one; requiring nothing would mix in stale
+not-yet-billed rows for months that already finished. Nights are never
+filtered on status — only revenue is.
+
 reservation_lead_time.created_on (real booking date, unlike rate_details'
 scrape-time created_at) is what lets /live/pickup, /live/pace and
 /live/projection group by when a booking was actually made; it joins
@@ -59,12 +68,31 @@ router = APIRouter()
 # once here so every route below builds on the same "currently valid" set.
 _LIVE_NIGHTS_CTE = """
     WITH live_nights AS (
-        SELECT rd.rate_date, rd.modified_amount, rd.payment_type, rd.reservation_id
+        SELECT rd.rate_date, rd.modified_amount, rd.payment_type, rd.status, rd.reservation_id
         FROM rate_details rd
         WHERE rd.rate_date IS NOT NULL
           AND COALESCE(LOWER(rd.reservation_status), '') NOT IN ('cancelled', 'canceled', 'no-show')
     )
 """
+
+
+def _revenue_filter(alias: str = "") -> str:
+    # A night's charge only gets posted (billed to the folio) at checkout,
+    # so requiring status = 'Posted' everywhere would show $0 for every
+    # future month (checked: 100% of future nights are 'Unposted' — there's
+    # nothing to bill yet) AND for the current, still-in-progress month
+    # (checked: 100% Unposted too — most of its stays haven't checked out
+    # yet). So: Posted-only for FULLY COMPLETED past months (strictly
+    # before the current month), Unposted-only for the current month
+    # onward. Nights are unaffected (still every valid night, matching the
+    # source-of-truth occupancy count) — only revenue is filtered this way.
+    p = f"{alias}." if alias else ""
+    return (
+        f"{p}payment_type IS DISTINCT FROM 'Free' AND ("
+        f"(DATE_TRUNC('month', {p}rate_date) < DATE_TRUNC('month', CURRENT_DATE) AND {p}status = 'Posted') "
+        f"OR (DATE_TRUNC('month', {p}rate_date) >= DATE_TRUNC('month', CURRENT_DATE) AND {p}status = 'Unposted')"
+        f")"
+    )
 
 
 @router.get("/forecast/live/months")
@@ -76,12 +104,12 @@ def forecast_live_months(db: Session = Depends(get_db)):
     year-over-year and custom period comparisons from this one series
     rather than the backend offering separate range-comparison endpoints.
     """
-    return rows(db, _LIVE_NIGHTS_CTE + """
+    return rows(db, _LIVE_NIGHTS_CTE + f"""
         SELECT
             EXTRACT(YEAR FROM rate_date)::int AS year,
             EXTRACT(MONTH FROM rate_date)::int AS month,
             COUNT(*)::float AS nights,
-            SUM(modified_amount) FILTER (WHERE payment_type IS DISTINCT FROM 'Free')::float AS revenue
+            SUM(modified_amount) FILTER (WHERE {_revenue_filter()})::float AS revenue
         FROM live_nights
         GROUP BY 1, 2
         ORDER BY 1, 2
@@ -98,12 +126,12 @@ def forecast_live_pickup(db: Session = Depends(get_db)):
     booked in disappears with it instead of being netted out in the month
     it was cancelled.
     """
-    return rows(db, _LIVE_NIGHTS_CTE + """
+    return rows(db, _LIVE_NIGHTS_CTE + f"""
         SELECT
             EXTRACT(YEAR FROM lt.created_on)::int AS year,
             EXTRACT(MONTH FROM lt.created_on)::int AS month,
             COUNT(*)::float AS nights,
-            SUM(n.modified_amount) FILTER (WHERE n.payment_type IS DISTINCT FROM 'Free')::float AS revenue
+            SUM(n.modified_amount) FILTER (WHERE {_revenue_filter("n")})::float AS revenue
         FROM reservation_lead_time lt
         JOIN live_nights n ON n.reservation_id = lt.reservation_id
         WHERE lt.created_on IS NOT NULL
@@ -119,12 +147,12 @@ def forecast_live_pace(stay_month: date = Query(...), db: Session = Depends(get_
     (reservation_lead_time.created_on), cumulative. Same gross-not-net
     caveat as /live/pickup — read it as a trend, not a reconciled figure.
     """
-    return rows(db, _LIVE_NIGHTS_CTE + """
+    return rows(db, _LIVE_NIGHTS_CTE + f"""
         , monthly AS (
             SELECT
                 DATE_TRUNC('month', lt.created_on)::date AS booked_month,
                 COUNT(*) AS nights,
-                SUM(n.modified_amount) FILTER (WHERE n.payment_type IS DISTINCT FROM 'Free') AS revenue
+                SUM(n.modified_amount) FILTER (WHERE {_revenue_filter("n")}) AS revenue
             FROM reservation_lead_time lt
             JOIN live_nights n ON n.reservation_id = lt.reservation_id
             WHERE lt.created_on IS NOT NULL
@@ -173,7 +201,7 @@ def forecast_live_projection(
     years are returned, not silently dropped, so the frontend can flag
     them rather than pretend every year is equally reliable.
     """
-    year_rows = rows(db, _LIVE_NIGHTS_CTE + """
+    year_rows = rows(db, _LIVE_NIGHTS_CTE + f"""
         , params AS (
             SELECT
                 DATE_TRUNC('month', CAST(:target_month AS DATE))::date AS target_month_start,
@@ -191,13 +219,13 @@ def forecast_live_projection(
                 y.yr AS year,
                 (make_date(y.yr, p.target_month_num, 1) - p.days_offset) AS cutoff_date,
                 COUNT(*)::float AS final_nights,
-                SUM(n.modified_amount) FILTER (WHERE n.payment_type IS DISTINCT FROM 'Free')::float AS final_revenue,
+                SUM(n.modified_amount) FILTER (WHERE {_revenue_filter("n")})::float AS final_revenue,
                 COUNT(*) FILTER (
                     WHERE lt.created_on IS NOT NULL
                       AND lt.created_on <= (make_date(y.yr, p.target_month_num, 1) - p.days_offset)
                 )::float AS cutoff_nights,
                 SUM(n.modified_amount) FILTER (
-                    WHERE n.payment_type IS DISTINCT FROM 'Free'
+                    WHERE {_revenue_filter("n")}
                       AND lt.created_on IS NOT NULL
                       AND lt.created_on <= (make_date(y.yr, p.target_month_num, 1) - p.days_offset)
                 )::float AS cutoff_revenue,
@@ -212,10 +240,10 @@ def forecast_live_projection(
         SELECT * FROM per_year WHERE final_revenue > 0 ORDER BY year
     """, {"target_month": target_month, "lookback_years": lookback_years})
 
-    current = rows(db, _LIVE_NIGHTS_CTE + """
+    current = rows(db, _LIVE_NIGHTS_CTE + f"""
         SELECT
             COUNT(*)::float AS nights,
-            SUM(modified_amount) FILTER (WHERE payment_type IS DISTINCT FROM 'Free')::float AS revenue
+            SUM(modified_amount) FILTER (WHERE {_revenue_filter()})::float AS revenue
         FROM live_nights
         WHERE DATE_TRUNC('month', rate_date)::date = DATE_TRUNC('month', CAST(:target_month AS DATE))::date
     """, {"target_month": target_month})
