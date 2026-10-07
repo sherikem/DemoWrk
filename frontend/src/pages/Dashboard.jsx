@@ -74,6 +74,9 @@ import OverviewTab from "./OverviewTab";
 // New vs Repeat Guest Revenue — its own tab (not nested inside Marketing)
 import GuestRevenueTab from "./GuestRevenueTab";
 
+// Reservations Forecast — imported "Summary of Reservations Forecast" workbook
+import ForecastTab from "./forecast/ForecastTab";
+
 /* ─── Sidebar nav config ─────────────────────────────────────── */
 const TABS = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -84,6 +87,9 @@ const TABS = [
   { id: "market", label: "Marketing Targeting", Icon: PartyPopper },
   { id: "ml", label: "ML Insights", Icon: Sparkles },
   { id: "villa_fees", label: "Annual Fees", Icon: Home },
+  { id: "guest_revenue", label: "Guest Revenue", Icon: TrendingUp },
+  { id: "lead_time", label: "Lead Time", Icon: Clock },
+  { id: "forecast", label: "Reservations Forecast", Icon: CalendarClock },
 ];
 
 const SUB = {
@@ -96,6 +102,12 @@ const SUB = {
   ml: "Segmentation, amenity insights and campaign recommendations — all monetary figures in $USD",
   villa_fees:
     "Maintenance, Capital Expenditure and membership dues billed per villa",
+  guest_revenue:
+    "New vs repeat guest revenue — trends by month and summary averages",
+  lead_time:
+    "Booking confirmed vs arrival date — full detail, trends and averages",
+  forecast:
+    "Nights and revenue on the books, live from bookings: projections and period comparisons",
 };
 
 /* ─── Recharts shared props ──────────────────────────────────── */
@@ -584,36 +596,34 @@ export default function Dashboard() {
           />
         )}
         {activeTab === "visits" && (
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "40px" }}
-          >
-            <VisitsRoomsTab
-              selectedVillaName={selectedVillaName}
-              onVillaSelect={setSelectedVillaName}
-              onGoToML={() => setActiveTab("ml")}
-            />
-
-            <ErrorBoundary title="Lead Time">
-              <Leadtimetab />
-            </ErrorBoundary>
-          </div>
+          <VisitsRoomsTab
+            selectedVillaName={selectedVillaName}
+            onVillaSelect={setSelectedVillaName}
+            onGoToML={() => setActiveTab("ml")}
+          />
         )}
-
         {/* ════ FINANCE ════ */}
-        {activeTab === "finance" && (
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "40px" }}
-          >
-            <FinanceTab />
-
-            <ErrorBoundary title="Guest Revenue">
-              <GuestRevenueTab />
-            </ErrorBoundary>
-          </div>
-        )}
+        {activeTab === "finance" && <FinanceTab />}
         {/* ════ VILLA FEES (TEST) ════ */}
         {activeTab === "villa_fees" && <VillaFeesTab />}
+        {/* ════ GUEST REVENUE (New vs Repeat) ════ */}
+        {activeTab === "guest_revenue" && (
+          <ErrorBoundary title="Guest Revenue">
+            <GuestRevenueTab />
+          </ErrorBoundary>
+        )}
 
+        {activeTab === "lead_time" && (
+          <ErrorBoundary title="Lead Time">
+            <Leadtimetab />
+          </ErrorBoundary>
+        )}
+        {/* ════ RESERVATIONS FORECAST ════ */}
+        {activeTab === "forecast" && (
+          <ErrorBoundary title="Reservations Forecast">
+            <ForecastTab />
+          </ErrorBoundary>
+        )}
         {/* ════ REPORTS ════ */}
         {activeTab === "reports" && (
           <div className="dashboard-section dashboard-section-sm">
