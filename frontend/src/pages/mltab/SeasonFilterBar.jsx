@@ -9,6 +9,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { analyticsApi } from "../../api/analytics";
+import { useAuth } from "../../auth/AuthContext";
 import { TOOLTIP_STYLE } from "../styles/Dashboardstyles";
 import { X, MapPin } from "lucide-react";
 
@@ -391,6 +392,8 @@ export default function SeasonFilterBar({
   onSeasonClick,
   onSeasonGroupChange,
 }) {
+  const { canEdit } = useAuth();
+  const canEditSeasons = canEdit("ml");
   const [groups, setGroups] = useState([]);
   const [seasonalVisits, setSeasonalVisits] = useState([]);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
@@ -779,37 +782,42 @@ export default function SeasonFilterBar({
                     custom
                   </span>
 
-                  <button
-                    type="button"
-                    style={{
-                      marginLeft: 6,
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      color: C.red,
-                    }}
-                    title="Delete group"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteGroup(g);
-                    }}
-                  >
-                    🗑
-                  </button>
+                  {canEditSeasons && (
+                    <button
+                      type="button"
+                      style={{
+                        marginLeft: 6,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: C.red,
+                      }}
+                      title="Delete group"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteGroup(g);
+                      }}
+                    >
+                      🗑
+                    </button>
+                  )}
                 </>
               )}
             </div>
           ))}
-          <button
-            style={S.addGroupBtn}
-            onClick={() => {
-              setShowAddGroup((v) => !v);
-              setShowAddSeason(false);
-              setEditingSeason(null);
-            }}
-          >
-            + Add group
-          </button>
+
+          {canEditSeasons && (
+            <button
+              style={S.addGroupBtn}
+              onClick={() => {
+                setShowAddGroup((v) => !v);
+                setShowAddSeason(false);
+                setEditingSeason(null);
+              }}
+            >
+              + Add group
+            </button>
+          )}
         </div>
 
         {/* Season chips */}
@@ -823,43 +831,45 @@ export default function SeasonFilterBar({
                 >
                   {formatSeasonRange(s)}
                 </span>
-                <span style={{ display: "flex", gap: 2, marginLeft: 2 }}>
-                  <button
-                    style={S.chipBtn}
-                    title={s.is_active ? "Disable" : "Enable"}
-                    onClick={() => toggleSeason(s)}
-                  >
-                    {s.is_active ? "◑" : "○"}
-                  </button>
-                  <button
-                    style={S.chipBtn}
-                    title="Edit"
-                    onClick={() => {
-                      setEditingSeason({ season: s });
-                      setEditForm({
-                        season_name: s.season_name,
-                        start_month: s.start_month,
-                        start_day: s.start_day,
-                        end_month: s.end_month,
-                        end_day: s.end_day,
-                      });
-                      setShowAddGroup(false);
-                      setShowAddSeason(false);
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    style={S.chipBtn}
-                    title="Delete"
-                    onClick={() => deleteSeason(s)}
-                  >
-                    🗑
-                  </button>
-                </span>
+                {canEditSeasons && (
+                  <span style={{ display: "flex", gap: 2, marginLeft: 2 }}>
+                    <button
+                      style={S.chipBtn}
+                      title={s.is_active ? "Disable" : "Enable"}
+                      onClick={() => toggleSeason(s)}
+                    >
+                      {s.is_active ? "◑" : "○"}
+                    </button>
+                    <button
+                      style={S.chipBtn}
+                      title="Edit"
+                      onClick={() => {
+                        setEditingSeason({ season: s });
+                        setEditForm({
+                          season_name: s.season_name,
+                          start_month: s.start_month,
+                          start_day: s.start_day,
+                          end_month: s.end_month,
+                          end_day: s.end_day,
+                        });
+                        setShowAddGroup(false);
+                        setShowAddSeason(false);
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      style={S.chipBtn}
+                      title="Delete"
+                      onClick={() => deleteSeason(s)}
+                    >
+                      🗑
+                    </button>
+                  </span>
+                )}
               </div>
             ))}
-            {activeGroup.group_type !== "simple" && (
+            {canEditSeasons && activeGroup.group_type !== "simple" && (
               <button
                 style={{ ...S.addGroupBtn, fontSize: 11, padding: "3px 10px" }}
                 onClick={() => {
@@ -875,7 +885,7 @@ export default function SeasonFilterBar({
         )}
 
         {/* Edit season panel */}
-        {editingSeason && (
+        {canEditSeasons && editingSeason && (
           <div style={S.panel}>
             <p
               style={{
@@ -986,7 +996,7 @@ export default function SeasonFilterBar({
         )}
 
         {/* Add season panel (business/custom groups) */}
-        {showAddSeason && (
+        {canEditSeasons && showAddSeason && (
           <div style={S.panel}>
             <p
               style={{
@@ -1097,7 +1107,7 @@ export default function SeasonFilterBar({
         )}
 
         {/* Add group panel */}
-        {showAddGroup && (
+        {canEditSeasons && showAddGroup && (
           <div style={S.panel}>
             <p
               style={{

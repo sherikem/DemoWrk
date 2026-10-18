@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { analyticsApi } from "../../api/analytics";
+import { useAuth } from "../../auth/AuthContext";
 
 const C = {
   bg: "var(--dashboard-card)",
@@ -539,7 +540,7 @@ function ActionButton({
   );
 }
 
-function CampaignCard({ campaign, onOpen, onEdit, onToggle, onDelete }) {
+function CampaignCard({ campaign, canEdit, onOpen, onEdit, onToggle, onDelete }) {
   const [showInfo, setShowInfo] = useState(false);
   const inactive = campaign.isActive === false;
 
@@ -658,26 +659,28 @@ function CampaignCard({ campaign, onOpen, onEdit, onToggle, onDelete }) {
         <Metric label="Avg Lifetime" value={money(campaign.avgLifetimeSpend)} />
       </div>
 
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          marginTop: "auto",
-          paddingTop: 14,
-        }}
-      >
-        <ActionButton onClick={() => onEdit(campaign)}>
-          <Edit3 size={13} /> Edit
-        </ActionButton>
-        <ActionButton onClick={() => onToggle(campaign)}>
-          {inactive ? "Enable" : "Disable"}
-        </ActionButton>
-        <ActionButton danger onClick={() => onDelete(campaign)}>
-          <Trash2 size={13} /> Delete
-        </ActionButton>
-      </div>
+      {canEdit && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginTop: "auto",
+            paddingTop: 14,
+          }}
+        >
+          <ActionButton onClick={() => onEdit(campaign)}>
+            <Edit3 size={13} /> Edit
+          </ActionButton>
+          <ActionButton onClick={() => onToggle(campaign)}>
+            {inactive ? "Enable" : "Disable"}
+          </ActionButton>
+          <ActionButton danger onClick={() => onDelete(campaign)}>
+            <Trash2 size={13} /> Delete
+          </ActionButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -1593,6 +1596,8 @@ function CampaignDrawer({ campaign, rows, loading, onClose, onExport }) {
 }
 
 export default function MarketingTargetingPanel() {
+  const { canEdit } = useAuth();
+  const canEditCampaigns = canEdit("market");
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1769,15 +1774,18 @@ export default function MarketingTargetingPanel() {
               alignItems: "flex-start",
             }}
           >
-            <ActionButton
-              primary
-              onClick={() => {
-                setFormCampaign(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus size={14} /> Add Campaign
-            </ActionButton>
+            {canEditCampaigns && (
+              <ActionButton
+                primary
+                onClick={() => {
+                  setFormCampaign(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus size={14} /> Add Campaign
+              </ActionButton>
+            )}
+
             <ActionButton onClick={loadCampaigns}>
               <RefreshCw size={14} /> Refresh
             </ActionButton>
@@ -1909,6 +1917,7 @@ export default function MarketingTargetingPanel() {
               key={campaign.key}
               campaign={campaign}
               onOpen={openCampaign}
+              canEdit={canEditCampaigns}
               onEdit={(c) => {
                 setFormCampaign(c);
                 setFormOpen(true);

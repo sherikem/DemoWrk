@@ -2,11 +2,12 @@
 // API client for the Reservations Forecast tab — computed live from
 // bookings currently on file (rate_details + reservation_lead_time), no
 // workbook upload. See backend/postgres/reservation_forecast.py.
+import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 async function fetchData(endpoint, options) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    const response = await authFetch(`${API_BASE_URL}${endpoint}`, options);
     if (!response.ok) {
         let message = "";
         try {

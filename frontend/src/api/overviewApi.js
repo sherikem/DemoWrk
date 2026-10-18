@@ -4,8 +4,9 @@
 // All calls hit /overview/... to match the backend router prefix
 // (postgres/overview_analytics.py)
 // ─────────────────────────────────────────────────────────────────
+import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL;
 
 async function get(endpoint, params = {}, options = {}) {
     const query = new URLSearchParams();
@@ -14,7 +15,7 @@ async function get(endpoint, params = {}, options = {}) {
     });
     const qs = query.toString();
     const url = `${API}/overview${endpoint}${qs ? "?" + qs : ""}`;
-    const res = await fetch(url, options.signal ? { signal: options.signal } : undefined);
+    const res = await authFetch(url, options.signal ? { signal: options.signal } : undefined);
     if (!res.ok) throw new Error(`${url} → ${res.status}`);
     return res.json();
 }

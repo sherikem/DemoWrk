@@ -38,11 +38,12 @@
 // Callers must read `.items` instead of using the response directly
 // as a list.
 // ─────────────────────────────────────────────────────────────────
+import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 async function fetchData(endpoint, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  const response = await authFetch(`${API_BASE_URL}${endpoint}`, options);
   if (!response.ok) {
     const message = await response.text().catch(() => "");
     throw new Error(

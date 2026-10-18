@@ -1,10 +1,11 @@
 // frontend/src/api/villaFeesApi.js
 // API client for the Villa Fees tab, including the dues history endpoints.
+import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 async function fetchData(endpoint) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    const response = await authFetch(`${API_BASE_URL}${endpoint}`);
     if (!response.ok) {
         const message = await response.text().catch(() => "");
         throw new Error(

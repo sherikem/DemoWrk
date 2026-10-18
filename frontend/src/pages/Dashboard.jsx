@@ -41,8 +41,12 @@ import {
   Settings,
   PartyPopper,
   Home,
+  UserCog,
+  LogOut,
 } from "lucide-react";
 import VillaFeesTab from "./VillaFeesTab";
+import { useAuth } from "../auth/AuthContext";
+import UsersAdmin from "../auth/UsersAdmin";
 import { analyticsApi } from "../api/analytics";
 import { overviewApi } from "../api/overviewApi";
 import {
@@ -108,7 +112,11 @@ const SUB = {
     "Booking confirmed vs arrival date — full detail, trends and averages",
   forecast:
     "Nights and revenue on the books, live from bookings: projections and period comparisons",
+  users: "Add people, set their role, reset passwords and disable accounts",
 };
+
+// Admin-only tab, added to the nav when the user's role includes "users".
+const USERS_TAB = { id: "users", label: "Users", Icon: UserCog };
 
 /* ─── Recharts shared props ──────────────────────────────────── */
 const AX = "#9A8E84";
@@ -117,7 +125,23 @@ const TIP = TOOLTIP_STYLE;
 
 /* ─── Main Dashboard ─────────────────────────────────────────── */
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState("overview");
+  // ── Role-based access: only the tabs this user's role allows ──
+  // user.tabs comes from GET /auth/me (backend/postgres/access_rules.py),
+  // so the menu always matches what the API will actually serve.
+  const { user, logout } = useAuth();
+  const visibleTabs = useMemo(() => {
+    const allowed = new Set(user?.tabs ?? []);
+    const tabs = TABS.filter((t) => allowed.has(t.id));
+    if (allowed.has("users")) tabs.push(USERS_TAB);
+    return tabs;
+  }, [user]);
+  const [activeTab, setActiveTab] = useState(() =>
+    (user?.tabs ?? []).includes("overview") ? "overview" : (user?.tabs?.[0] ?? "overview"),
+  );
+  // Links between tabs (e.g. Overview cards) only go to tabs the user can open.
+  const goToTab = (id) => {
+    if (visibleTabs.some((t) => t.id === id)) setActiveTab(id);
+  };
   const [activeSeasonGroup, setActiveSeasonGroup] = useState(null);
 
   // Overview tab date-range filter (added 2026-06-26) — reuses the exact
@@ -496,7 +520,7 @@ export default function Dashboard() {
         <div className="mb-8 flex items-center gap-3"></div>
 
         <nav className="flex flex-col gap-1.5">
-          {TABS.map(({ id, label, Icon }) => {
+          {visibleTabs.map(({ id, label, Icon }) => {
             const active = activeTab === id;
             return (
               <button
@@ -520,20 +544,26 @@ export default function Dashboard() {
             <h1 className="dashboard-page-title">
               {activeTab === "overview"
                 ? "Overview"
-                : TABS.find((t) => t.id === activeTab)?.label}
+                : visibleTabs.find((t) => t.id === activeTab)?.label}
             </h1>
             <p className="dashboard-page-subtitle">{SUB[activeTab]}</p>
           </div>
           <div className="dashboard-topbar-actions">
+            <span className="dashboard-page-subtitle" title={`Role: ${user?.role}`}>
+              {user?.full_name || user?.username}
+            </span>
             <button className="dashboard-icon-button">
               <Bell style={{ width: 16, height: 16 }} />
+            </button>
+            <button className="dashboard-icon-button" onClick={logout} title="Log out" aria-label="Log out">
+              <LogOut style={{ width: 16, height: 16 }} />
             </button>
           </div>
         </header>
         {/* ════ OVERVIEW ════ */}
         {activeTab === "overview" && (
           <OverviewTab
-            onNavigateToTab={setActiveTab}
+            onNavigateToTab={goToTab}
             period={overviewPeriod}
             onPeriodChange={setOverviewPeriod}
             years={overviewYears}
@@ -599,7 +629,7 @@ export default function Dashboard() {
           <VisitsRoomsTab
             selectedVillaName={selectedVillaName}
             onVillaSelect={setSelectedVillaName}
-            onGoToML={() => setActiveTab("ml")}
+            onGoToML={() => goToTab("ml")}
           />
         )}
         {/* ════ FINANCE ════ */}
@@ -1207,6 +1237,14 @@ export default function Dashboard() {
             <SectionLabel>Amenity Season Analysis</SectionLabel>
             <ErrorBoundary title="Amenity Season Insights">
               <AmenitySeasonPanel seasonGroupId={activeSeasonGroup?.id} />
+            </ErrorBoundary>
+          </div>
+        )}
+        {/* ════ USERS (admin only) ════ */}
+        {activeTab === "users" && (
+          <div className="dashboard-section">
+            <ErrorBoundary title="Users">
+              <UsersAdmin />
             </ErrorBoundary>
           </div>
         )}
