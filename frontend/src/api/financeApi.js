@@ -40,7 +40,7 @@
 // ─────────────────────────────────────────────────────────────────
 import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL|| "http://localhost:8000";
 
 async function fetchData(endpoint, options = {}) {
   const response = await authFetch(`${API_BASE_URL}${endpoint}`, options);

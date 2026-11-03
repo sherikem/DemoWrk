@@ -15,7 +15,7 @@
 // when the browser closes. The backend expires it after 8 hours regardless.
 // ─────────────────────────────────────────────────────────────────
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL;
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000"; // fallback for dev
 
 const TOKEN_KEY = "demowrk_token";
 
