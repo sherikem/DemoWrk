@@ -15,6 +15,9 @@
 //   * Booking activity      — gross bookings made per month, and how one
 //                              stay month's bookings built up over time
 //
+// Two sub-tabs: "Forecast Sheet" (default — ForecastSheetTab.jsx, the old
+// monthly workbook's layout rebuilt live) and "Overview" (everything above).
+//
 // No budget or "same time last year" column: those only ever existed in
 // the retired workbook. See backend/postgres/reservation_forecast.py for
 // the full methodology and its one real limitation (cancelled reservations
@@ -43,13 +46,13 @@ import {
     DollarSign,
     TrendingUp,
     CalendarRange,
-    Info,
     Loader2,
     Sparkles,
     ArrowLeftRight,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { forecastApi } from "../../api/forecastApi";
+import ForecastSheetTab from "./ForecastSheetTab";
 
 const serif = "'Cormorant Garamond', serif";
 
@@ -363,8 +366,10 @@ function ProjectionPanel({ months, metric, fmtVal, fmtAxis }) {
             <CardTitle
                 icon={Sparkles}
                 title="Projection"
-                hint="What's on the books now, projected to the eventual final total using how past years' equivalent months built up by this same point in time"
-                info="For each past year, we look at the same calendar month and ask what share of its eventual total was already booked at this same lead time. Averaging that share across years gives a projection; the low/high range comes from the least and most complete years. Years with too few known booking dates are shown but excluded from the average."
+                info={
+                    "Where this month is likely to end up. For each past year, we check what share of that month's final total was already booked at this same point, average those shares, and scale up what's on the books now. The range comes from the slowest and fastest years. Faded bars are years with too few known booking dates, left out of the average." +
+                    (proj ? ` Currently based on ${data.years_used} past year${data.years_used === 1 ? "" : "s"}: on average, ${(proj.ratio_avg * 100).toFixed(0)}% of the final total was booked by now.` : "")
+                }
                 right={
                     <select style={selectStyle} value={target} onChange={(e) => setTarget(e.target.value)}>
                         {monthOptions.map((o) => (
@@ -421,11 +426,6 @@ function ProjectionPanel({ months, metric, fmtVal, fmtAxis }) {
                         </div>
                     </div>
 
-                    <p style={{ fontSize: 11.5, color: C.muted, margin: "0 0 12px" }}>
-                        Based on {data.years_used} past year{data.years_used === 1 ? "" : "s"} of{" "}
-                        {monthLabel(target).split(" ")[0]}: on average, {(proj.ratio_avg * 100).toFixed(0)}% of the
-                        eventual total was already on the books at this same point in time.
-                    </p>
 
                     <div style={{ height: 160 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -454,10 +454,6 @@ function ProjectionPanel({ months, metric, fmtVal, fmtAxis }) {
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <p style={{ fontSize: 11, color: C.muted, margin: "8px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
-                        <Info size={11} /> Faded bars had incomplete booking-date history for that year, so they're
-                        shown but not counted toward the projection above.
-                    </p>
                 </>
             )}
         </div>
@@ -556,8 +552,7 @@ function PeriodComparisonPanel({ months, metric, fmtVal, fmtAxis }) {
             <CardTitle
                 icon={ArrowLeftRight}
                 title="Compare periods"
-                hint="Any two custom date ranges, side by side: pick a start month for each and a shared length"
-                info="Sums nights and revenue across each period from the same live figures shown above, so it inherits the same as-of-today limitation: neither period is a reconstructed historical snapshot."
+                info="Totals for two periods of the same length, side by side. Pick a start month for each period and a shared length."
                 right={
                     <Toggle value={duration} onChange={setDuration} options={DURATIONS} />
                 }
@@ -622,8 +617,10 @@ function PeriodComparisonPanel({ months, metric, fmtVal, fmtAxis }) {
     );
 }
 
-/* ═════════════════════════════════════════════════════════════ */
-export default function ForecastTab() {
+/* ═════════════════════════════════════════════════════════════
+   OVERVIEW — the original Reservations Forecast view (first sub-tab).
+   ═════════════════════════════════════════════════════════════ */
+function ForecastOverview() {
     const [months, setMonths] = useState([]);
     const [pickup, setPickup] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -752,25 +749,6 @@ export default function ForecastTab() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* ── header / info strip ── */}
-            <div
-                style={{
-                    ...card,
-                    padding: "10px 16px",
-                    fontSize: 12,
-                    color: C.muted,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                }}
-            >
-                <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>
-                    Live from bookings on file, always as of right now, with no budget column. Hover the{" "}
-                    <span style={{ fontWeight: 700 }}>i</span> on any box below for what it measures and its limits.
-                </span>
-            </div>
-
             {/* ── toolbar ── */}
             <div
                 style={{
@@ -814,7 +792,7 @@ export default function ForecastTab() {
                     label={`Nights on the books · ${year}`}
                     value={num(totals.nights_current)}
                     accent={C.flame}
-                    info="Total room nights currently booked for this stay year, counted from valid (non-cancelled) reservations on file right now."
+                    info="Room nights currently booked for this stay year."
                     rows={[
                         ["vs same months last year", pctText(ratio(totals.nights_current, totals.nights_prev_year)),
                             pctColor(ratio(totals.nights_current, totals.nights_prev_year))],
@@ -825,7 +803,7 @@ export default function ForecastTab() {
                     label={`Revenue on the books · ${year}`}
                     value={compact(totals.revenue_current)}
                     accent={C.deep}
-                    info="Sum of nightly room rates for this stay year, excluding complimentary (Free) stays. Extras/add-ons and taxes are not included."
+                    info="Nightly room rates for this stay year, excluding complimentary stays, extras, add-ons and taxes."
                     rows={[
                         ["vs same months last year", pctText(ratio(totals.revenue_current, totals.revenue_prev_year)),
                             pctColor(ratio(totals.revenue_current, totals.revenue_prev_year))],
@@ -836,7 +814,7 @@ export default function ForecastTab() {
                     label="Average rate on the books"
                     value={totals.nights_current ? money(totals.revenue_current / totals.nights_current) : "–"}
                     accent={C.truffle}
-                    info="Revenue on the books divided by nights on the books for this stay year: the blended nightly rate across every reservation currently booked."
+                    info="Revenue on the books divided by nights on the books: the average nightly rate across every reservation booked for this year."
                     rows={[
                         ["Same months last year",
                             totals.nights_prev_year ? money(totals.revenue_prev_year / totals.nights_prev_year) : "–"],
@@ -849,8 +827,7 @@ export default function ForecastTab() {
             <div style={card}>
                 <CardTitle
                     title={`${metric === "revenue" ? "Revenue" : "Nights"} by stay month · ${year}`}
-                    hint="On the books right now, against the same month last year"
-                    info="Each bar is what's currently booked for that month, as of today. It is not a snapshot from any past date, so this can look lower than an older report for the same month once cancellations are accounted for."
+                    info="Bars show what's booked for each month right now. The line shows the same month last year."
                 />
                 <div style={{ height: 280 }}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -915,8 +892,7 @@ export default function ForecastTab() {
                     <CardTitle
                         icon={TrendingUp}
                         title="Booking pace"
-                        hint="How one stay month's bookings built up over time"
-                        info="Cumulative nights or revenue for the selected stay month, plotted by the month each booking was made. Since a since-cancelled booking leaves no trace, this reflects only reservations that are still on file today."
+                        info="How the selected stay month's bookings built up, by the month each booking was made."
                         right={
                             monthOptionsForPace.length > 0 && (
                                 <select style={selectStyle} value={paceMonth ?? ""} onChange={(e) => setPaceMonth(e.target.value)}>
@@ -951,8 +927,7 @@ export default function ForecastTab() {
                 <div style={card}>
                     <CardTitle
                         title={`Gross bookings made · ${metric === "revenue" ? "revenue" : "nights"}`}
-                        hint="By the month the booking was made, not net of later cancellations"
-                        info="Every stay month rolled up by the calendar month its booking was made. Gross, not net: a booking that's since been cancelled disappears from its original month entirely instead of being subtracted out."
+                        info="Bookings for every stay month, grouped by the month each booking was made."
                     />
                     <div style={{ height: 240 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -977,6 +952,59 @@ export default function ForecastTab() {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+/* ═════════════════════════════════════════════════════════════
+   Sub-tab shell: Forecast Sheet (default) | Overview. Only the active one is
+   mounted, so the sheet doesn't fetch until it's opened.
+   ═════════════════════════════════════════════════════════════ */
+const SUB_TABS = [
+    { value: "sheet", label: "Forecast Sheet" },
+    { value: "overview", label: "Overview" },
+];
+
+export default function ForecastTab() {
+    const [tab, setTab] = useState("sheet");
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <div
+                role="tablist"
+                style={{
+                    display: "flex",
+                    gap: 4,
+                    borderBottom: `1px solid ${C.border}`,
+                }}
+            >
+                {SUB_TABS.map((t) => {
+                    const active = t.value === tab;
+                    return (
+                        <button
+                            key={t.value}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() => setTab(t.value)}
+                            style={{
+                                padding: "10px 16px",
+                                marginBottom: -1,
+                                border: "none",
+                                borderBottom: `3px solid ${active ? C.flame : "transparent"}`,
+                                background: "transparent",
+                                color: active ? C.text : C.muted,
+                                fontFamily: serif,
+                                fontSize: 18,
+                                fontWeight: active ? 700 : 600,
+                                cursor: "pointer",
+                            }}
+                        >
+                            {t.label}
+                        </button>
+                    );
+                })}
+            </div>
+            {tab === "sheet" ? <ForecastSheetTab /> : <ForecastOverview />}
         </div>
     );
 }

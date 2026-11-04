@@ -4,15 +4,12 @@
 //
 //   <AuthProvider>   wrap the app in it (App.jsx)
 //   useAuth()        { user, loading, login(username, password), logout(),
-//                      canEdit(tabId) }
+//                      canEdit(tabId), canExport }
 //
-// user = { id, username, full_name, role, tabs: [...], edit_tabs: [...] }
+// user = { id, username, full_name, role, tabs, edit_tabs, can_export }
 // from GET /auth/me.
-// `tabs` is the list of tab ids this role may open (backend/postgres/
-// access_rules.py) — Dashboard.jsx shows only those.
-// `edit_tabs` is the subset where the role may also make changes.
-// canEdit("market") is true only if the role may edit that tab; use it to
-// hide Add / Edit / Delete buttons. The backend enforces this regardless.
+// canEdit("market") is true only if the role may edit that tab.
+// canExport is true only if the role may download/export data.
 // ─────────────────────────────────────────────────────────────────
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiJson, clearToken, getToken, setToken } from "../api/client";
@@ -53,14 +50,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // True if the current role may make changes on this tab.
   const canEdit = useCallback(
     (tabId) => !!user?.edit_tabs?.includes(tabId),
     [user]
   );
+  const canExport = !!user?.can_export;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, canEdit }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, canEdit, canExport }}>
       {children}
     </AuthContext.Provider>
   );

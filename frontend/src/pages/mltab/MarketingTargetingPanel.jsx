@@ -658,7 +658,7 @@ function CampaignCard({ campaign, canEdit, onOpen, onEdit, onToggle, onDelete })
         <Metric label="Potential" value={money(campaign.potentialRevenue)} />
         <Metric label="Avg Lifetime" value={money(campaign.avgLifetimeSpend)} />
       </div>
-
+      
       {canEdit && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -1785,7 +1785,6 @@ export default function MarketingTargetingPanel() {
                 <Plus size={14} /> Add Campaign
               </ActionButton>
             )}
-
             <ActionButton onClick={loadCampaigns}>
               <RefreshCw size={14} /> Refresh
             </ActionButton>

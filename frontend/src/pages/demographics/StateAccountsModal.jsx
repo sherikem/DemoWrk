@@ -17,6 +17,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 import DateFilterBar from "./DemographicsDateFilter";
+import { useAuth } from "../../auth/AuthContext";
 
 const C = {
   bg: "var(--dashboard-card)",
@@ -131,6 +132,7 @@ export default function StateAccountsModal({
   ] = useState(false);
 
   const exportMenuRef = useRef(null);
+  const { canExport } = useAuth();
   const resizingRef = useRef(false);
 
   const drawerTitle =
@@ -981,155 +983,157 @@ export default function StateAccountsModal({
               </span>
             )}
 
-            <div
-              ref={exportMenuRef}
-              style={{
-                position: "relative",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setExportMenuOpen(
-                    (open) => !open,
-                  )
-                }
-                disabled={
-                  loading ||
-                  Boolean(error) ||
-                  filteredAccounts.length ===
-                    0
-                }
-                aria-expanded={
-                  exportMenuOpen
-                }
-                aria-haspopup="menu"
+            {canExport && (
+              <div
+                ref={exportMenuRef}
                 style={{
-                  height: 38,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 7,
-                  padding: "0 11px",
-                  border:
-                    `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  background: C.bg,
-                  color: C.text,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor:
-                    loading ||
-                    error ||
-                    filteredAccounts.length ===
-                      0
-                      ? "not-allowed"
-                      : "pointer",
-                  opacity:
-                    loading ||
-                    error ||
-                    filteredAccounts.length ===
-                      0
-                      ? 0.5
-                      : 1,
+                  position: "relative",
                 }}
               >
-                <Download size={14} />
-
-                Export
-
-                <ChevronDown
-                  size={13}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExportMenuOpen(
+                      (open) => !open,
+                    )
+                  }
+                  disabled={
+                    loading ||
+                    Boolean(error) ||
+                    filteredAccounts.length ===
+                      0
+                  }
+                  aria-expanded={
+                    exportMenuOpen
+                  }
+                  aria-haspopup="menu"
                   style={{
-                    transform:
-                      exportMenuOpen
-                        ? "rotate(180deg)"
-                        : "rotate(0deg)",
-                    transition:
-                      "transform 0.16s ease",
-                  }}
-                />
-              </button>
-
-              {exportMenuOpen && (
-                <div
-                  role="menu"
-                  style={{
-                    position: "absolute",
-                    top:
-                      "calc(100% + 6px)",
-                    right: 0,
-                    zIndex: 30,
-                    width: 150,
-                    overflow: "hidden",
-                    background: C.bg,
+                    height: 38,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 7,
+                    padding: "0 11px",
                     border:
                       `1px solid ${C.border}`,
-                    borderRadius: 11,
-                    boxShadow:
-                      "0 12px 32px rgba(0, 0, 0, 0.15)",
-                    padding: 5,
+                    borderRadius: 10,
+                    background: C.bg,
+                    color: C.text,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor:
+                      loading ||
+                      error ||
+                      filteredAccounts.length ===
+                        0
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      loading ||
+                      error ||
+                      filteredAccounts.length ===
+                        0
+                        ? 0.5
+                        : 1,
                   }}
                 >
-                  {[
-                    {
-                      label:
-                        "Export CSV",
-                      action:
-                        exportCsv,
-                    },
-                    {
-                      label:
-                        "Export Excel",
-                      action:
-                        exportExcel,
-                    },
-                    {
-                      label:
-                        "Export PDF",
-                      action:
-                        exportPdf,
-                    },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      role="menuitem"
-                      onClick={
-                        item.action
-                      }
-                      style={{
-                        width: "100%",
-                        padding:
-                          "9px 10px",
-                        border: "none",
-                        borderRadius: 7,
-                        background:
-                          "transparent",
-                        color: C.text,
-                        fontSize: 11,
-                        textAlign: "left",
-                        cursor: "pointer",
-                      }}
-                      onMouseEnter={(
-                        event,
-                      ) => {
-                        event.currentTarget.style.background =
-                          C.panelAlt;
-                      }}
-                      onMouseLeave={(
-                        event,
-                      ) => {
-                        event.currentTarget.style.background =
-                          "transparent";
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                  <Download size={14} />
+
+                  Export
+
+                  <ChevronDown
+                    size={13}
+                    style={{
+                      transform:
+                        exportMenuOpen
+                          ? "rotate(180deg)"
+                          : "rotate(0deg)",
+                      transition:
+                        "transform 0.16s ease",
+                    }}
+                  />
+                </button>
+
+                {exportMenuOpen && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: "absolute",
+                      top:
+                        "calc(100% + 6px)",
+                      right: 0,
+                      zIndex: 30,
+                      width: 150,
+                      overflow: "hidden",
+                      background: C.bg,
+                      border:
+                        `1px solid ${C.border}`,
+                      borderRadius: 11,
+                      boxShadow:
+                        "0 12px 32px rgba(0, 0, 0, 0.15)",
+                      padding: 5,
+                    }}
+                  >
+                    {[
+                      {
+                        label:
+                          "Export CSV",
+                        action:
+                          exportCsv,
+                      },
+                      {
+                        label:
+                          "Export Excel",
+                        action:
+                          exportExcel,
+                      },
+                      {
+                        label:
+                          "Export PDF",
+                        action:
+                          exportPdf,
+                      },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        role="menuitem"
+                        onClick={
+                          item.action
+                        }
+                        style={{
+                          width: "100%",
+                          padding:
+                            "9px 10px",
+                          border: "none",
+                          borderRadius: 7,
+                          background:
+                            "transparent",
+                          color: C.text,
+                          fontSize: 11,
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(
+                          event,
+                        ) => {
+                          event.currentTarget.style.background =
+                            C.panelAlt;
+                        }}
+                        onMouseLeave={(
+                          event,
+                        ) => {
+                          event.currentTarget.style.background =
+                            "transparent";
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

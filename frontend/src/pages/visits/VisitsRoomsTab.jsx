@@ -66,6 +66,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { analyticsApi } from "../../api/analytics";
+import { useAuth } from "../../auth/AuthContext";
 
 const T = {
   ink: "#1A2733", // headline text, panel headers
@@ -1189,6 +1190,7 @@ function DrillPanel({
   onOpenVilla,
   villaMetrics,
 }) {
+  const { canExport } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [trend, setTrend] = useState([]);
@@ -1752,11 +1754,13 @@ function DrillPanel({
                 }}
               />
             </div>
-            <ExportMenu
-              rows={exportData}
-              filenameBase={`${safeFilePart(selLabel)}_records_${safeFilePart(periodFilePart(period))}`}
-              disabled={loading || !exportData.length}
-            />
+            {canExport && (
+              <ExportMenu
+                rows={exportData}
+                filenameBase={`${safeFilePart(selLabel)}_records_${safeFilePart(periodFilePart(period))}`}
+                disabled={loading || !exportData.length}
+              />
+            )}
           </div>
         }
       >
@@ -1933,6 +1937,7 @@ function DrillPanel({
    ═════════════════════════════════════════════════════════════════════════ */
 
 function MemberGuestPanel({ params, period, onClose }) {
+  const { canExport } = useAuth();
   const [data, setData] = useState({ members: [], guests: [] });
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState("members");
@@ -2119,11 +2124,13 @@ function MemberGuestPanel({ params, period, onClose }) {
                 }}
               />
             </div>
-            <ExportMenu
+            {canExport && (
+              <ExportMenu
               rows={exportData}
               filenameBase={`${kind}_booked_${safeFilePart(periodFilePart(period))}`}
               disabled={loading || !exportData.length}
             />
+            )}
           </div>
         }
       >
@@ -2269,6 +2276,7 @@ function MemberGuestPanel({ params, period, onClose }) {
    ═════════════════════════════════════════════════════════════════════════ */
 
 export default function VisitsRoomsTab({ selectedVillaName, onVillaSelect }) {
+  const { canExport } = useAuth();
   const years = useMemo(() => {
     const current = new Date().getFullYear();
     return Array.from({ length: current - 2018 + 1 }, (_, i) => current - i);
@@ -3336,12 +3344,14 @@ export default function VisitsRoomsTab({ selectedVillaName, onVillaSelect }) {
                 ]}
               />
             )}
-
-            <ExportMenu
-              rows={tableExport}
-              filenameBase={`villa_performance_${tableDim}_${safeFilePart(periodFilePart(period))}`}
-              disabled={!tableExport.length}
-            />
+            {canExport &&(
+              <ExportMenu
+                rows={tableExport}
+                filenameBase={`villa_performance_${tableDim}_${safeFilePart(periodFilePart(period))}`}
+                disabled={!tableExport.length}
+              />
+            )}
+            
             <InfoTip id="table" />
           </div>
         </div>

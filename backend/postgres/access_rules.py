@@ -3,52 +3,146 @@
 Role-based access rules for the DemoWrk dashboard — the ONE place that says
 which role may use which tab, and which API paths belong to which tab.
 
+HOW PERMISSIONS WORK
+  * Each role is a PRESET (see PRESETS): the tabs it can view, the tabs it can
+    edit, and whether it can export.
+  * A user may also have CUSTOM permissions (app_users.permissions, set from
+    the Users tab). If they do, those replace the preset for that user.
+    If they don't (NULL), the user simply follows their role's preset.
+  * effective_permissions(role, custom) gives the final answer. The server
+    uses it on every request, and /auth/me sends it to the frontend.
+  * Edit always implies view. Admin always gets the full Admin preset.
+  * The "users" tab (user management) is Admin-only and can't be granted.
+
 Used by:
   * postgres/auth.py   check_access() runs on every API request and refuses
-                       (403) any path whose tab the user's role doesn't have.
-  * GET /auth/me       sends the user's allowed tab ids to the frontend, which
-                       hides every other tab (Dashboard.jsx), so the two never
-                       drift apart.
+                       (403) any path the user may not use.
+  * GET /auth/me       sends the user's tab ids to the frontend, which hides
+                       every other tab (Dashboard.jsx).
 
-To change who sees what, edit ROLE_TABS. To protect a new endpoint, add its
-path prefix to PATH_RULES (most specific first). Tab ids match the `id`
+To change what a preset allows, edit PRESETS. To protect a new endpoint, add
+its path prefix to PATH_RULES (most specific first). Tab ids match the `id`
 values in frontend/src/pages/Dashboard.jsx TABS.
 """
 
 # ─────────────────────────────────────────────
-# ROLES → TABS
+# TABS
 # ─────────────────────────────────────────────
 ALL_TABS = [
     "overview", "demographics", "visits", "finance", "reports", "market",
     "ml", "villa_fees", "guest_revenue", "lead_time", "forecast",
 ]
 
-# VIEW access: which tabs (and the API paths behind them) a role can open.
-# Viewing does NOT imply exporting: see ROLES_CAN_EXPORT below.
-ROLE_TABS = {
-    "Admin":      ALL_TABS + ["users"],
-    "Power-User": ["overview","demographics","villa_fees"],
-    "Read-Only":  ["overview","demographics","villa_fees"],
-    "Finance":    ["overview", "finance", "villa_fees", "guest_revenue", "forecast"],
+# Names shown in the Permissions section of the Users tab. Edit these to match
+# the tab names in Dashboard.jsx if they differ.
+TAB_LABELS = {
+    "overview":      "Overview",
+    "demographics":  "Demographics",
+    "visits":        "Visits & Rooms",
+    "finance":       "Finance",
+    "reports":       "Reports",
+    "market":        "Marketing Targeting",
+    "ml":            "ML Insights",
+    "villa_fees":    "Annual Fees",
+    "guest_revenue": "Guest Revenue",
+    "lead_time":     "Lead Time",
+    "forecast":      "Reservations Forecast",
 }
 
-# EXPORT access: which roles may download/export data (see role_can_export).
-# Read-Only is deliberately left out. Role names must match the database exactly.
-ROLES_CAN_EXPORT = {"Admin", "Power-User", "Finance"}
-
-# EDIT access: tabs where the role may also make changes (POST/PUT/PATCH/DELETE).
-# Read-Only has none, so it can never change anything.
-# A write to an unmapped path (tab None) is allowed for admin only.
-ROLE_EDIT_TABS = {
-    "Admin":      ALL_TABS + ["users"],
-    "Power-User": ["overview","demographics","villa_fees"],
-    "Read-Only":  [],
-    "Finance":    ["overview","finance", "villa_fees", "guest_revenue", "forecast"],
+# ─────────────────────────────────────────────
+# ROLE PRESETS
+# ─────────────────────────────────────────────
+# view_tabs  : tabs (and the API paths behind them) the role can open.
+# edit_tabs  : tabs where it may also make changes (POST/PUT/PATCH/DELETE).
+# can_export : may it download/export data.
+# Role names must match the database CHECK constraint, ROLES in
+# UsersAdmin.jsx and these keys EXACTLY (spelling, capitals, hyphens).
+PRESETS = {
+    "Admin": {
+        "view_tabs": ALL_TABS + ["users"],
+        "edit_tabs": ALL_TABS + ["users"],
+        "can_export": True,
+    },
+    "Power-User": {
+        "view_tabs": ["overview", "demographics", "visits"],
+        "edit_tabs": ["overview", "demographics", "visits"],
+        "can_export": True,
+    },
+    "Read-Only": {
+        "view_tabs": ["overview", "demographics", "visits"],
+        "edit_tabs": [],
+        "can_export": False,
+    },
+    "Finance": {
+        "view_tabs": ["overview", "finance", "villa_fees", "guest_revenue", "forecast"],
+        "edit_tabs": ["overview", "finance", "villa_fees", "guest_revenue", "forecast"],
+        "can_export": True,
+    },
+    "Sales Power-User": {
+        "view_tabs": list(ALL_TABS),     # every tab except Users
+        "edit_tabs": [],
+        "can_export": False,
+    },
 }
 
+ROLES = list(PRESETS)
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-ROLES = list(ROLE_TABS)
+# Older names, derived from PRESETS so nothing that still imports them breaks.
+ROLE_TABS = {r: p["view_tabs"] for r, p in PRESETS.items()}
+ROLE_EDIT_TABS = {r: p["edit_tabs"] for r, p in PRESETS.items()}
+ROLES_CAN_EXPORT = {r for r, p in PRESETS.items() if p["can_export"]}
+
+# ─────────────────────────────────────────────
+# EFFECTIVE PERMISSIONS (preset + optional custom)
+# ─────────────────────────────────────────────
+def _as_dict(custom):
+    """The database may hand back a dict, a JSON string, or None."""
+    if custom is None:
+        return None
+    if isinstance(custom, str):
+        import json
+        try:
+            custom = json.loads(custom)
+        except ValueError:
+            return None
+    return custom if isinstance(custom, dict) else None
+
+
+def normalize_permissions(raw) -> dict:
+    """Clean a permissions dict: known tabs only, no 'users', edit implies view."""
+    raw = _as_dict(raw) or {}
+    view = [t for t in ALL_TABS if t in (raw.get("view_tabs") or [])]
+    edit = [t for t in ALL_TABS if t in (raw.get("edit_tabs") or [])]
+    view = [t for t in ALL_TABS if t in set(view) | set(edit)]   # edit implies view
+    return {"view_tabs": view, "edit_tabs": edit, "can_export": bool(raw.get("can_export"))}
+
+
+def effective_permissions(role: str, custom=None) -> dict:
+    """The permissions a user really has: custom if set, else the role's preset.
+    Admin is always the full Admin preset. Unknown roles get nothing."""
+    preset = PRESETS.get(role)
+    if preset is None:
+        return {"view_tabs": [], "edit_tabs": [], "can_export": False}
+    if role == "Admin" or _as_dict(custom) is None:
+        return {"view_tabs": list(preset["view_tabs"]),
+                "edit_tabs": list(preset["edit_tabs"]),
+                "can_export": preset["can_export"]}
+    clean = normalize_permissions(custom)
+    return clean
+
+
+def matches_preset(role: str, perms) -> bool:
+    """True if these permissions are exactly the role's preset (so there is
+    nothing custom to store)."""
+    preset = PRESETS.get(role)
+    if preset is None:
+        return False
+    clean = normalize_permissions(perms)
+    return (set(clean["view_tabs"]) == set(preset["view_tabs"]) - {"users"}
+            and set(clean["edit_tabs"]) == set(preset["edit_tabs"]) - {"users"}
+            and clean["can_export"] == preset["can_export"])
+
 
 # ─────────────────────────────────────────────
 # API PATH → TAB
@@ -93,19 +187,41 @@ def tab_for_path(path: str):
     return DEFAULT_TAB
 
 
-def role_can_use(role: str, tab) -> bool:
+# ─────────────────────────────────────────────
+# CHECKS USED BY auth.py (these take the whole user)
+# ─────────────────────────────────────────────
+def user_perms(user: dict) -> dict:
+    return effective_permissions(user.get("role"), user.get("permissions"))
+
+
+def user_can_use(user: dict, tab) -> bool:
+    if user.get("role") not in PRESETS:
+        return False
     if tab is None:
-        return role in ROLE_TABS
-    return tab in ROLE_TABS.get(role, [])
+        return True
+    return tab in user_perms(user)["view_tabs"]
+
+
+def user_can_edit(user: dict, tab) -> bool:
+    """May this user make changes (not just view) on this tab?
+    A write to an unmapped path (tab None) is allowed for Admin only."""
+    if tab is None:
+        return user.get("role") == "Admin"
+    return tab in user_perms(user)["edit_tabs"]
+
+
+def user_can_export(user: dict) -> bool:
+    return user_perms(user)["can_export"]
+
+
+# Older role-only versions, kept so nothing that still imports them breaks.
+def role_can_use(role: str, tab) -> bool:
+    return user_can_use({"role": role}, tab)
 
 
 def role_can_edit(role: str, tab) -> bool:
-    """May this role make changes (not just view) on this tab?"""
-    if tab is None:
-        return role == "Admin"
-    return tab in ROLE_EDIT_TABS.get(role, [])
+    return user_can_edit({"role": role}, tab)
 
 
 def role_can_export(role: str) -> bool:
-    """May this role download/export data? (Read-Only may not.)"""
-    return role in ROLES_CAN_EXPORT
+    return user_can_export({"role": role})

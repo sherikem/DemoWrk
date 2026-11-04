@@ -14,7 +14,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { villaFeesApi } from "../api/villaFeesApi";
-
+import { useAuth } from "../auth/AuthContext";
 const serif = "'Cormorant Garamond', serif";
 
 const C = {
@@ -157,6 +157,7 @@ function ExportMenu({ rows, filenameBase, disabled }) {
 }
 
 export default function DuesHistorySection() {
+  const { canExport } = useAuth();
   const [byYear, setByYear] = useState([]);
   const [bySize, setBySize] = useState([]);
   const [villasPerYear, setVillasPerYear] = useState([]);
@@ -283,7 +284,9 @@ export default function DuesHistorySection() {
             Total column here includes GCT.
           </div>
         </div>
-        <ExportMenu rows={exportData} disabled={!exportData.length} />
+        {canExport && (
+          <ExportMenu rows={exportData} disabled={!exportData.length} />
+        )}
       </div>
 
       {error && (
