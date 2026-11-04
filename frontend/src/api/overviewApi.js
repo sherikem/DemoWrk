@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────
 import { authFetch } from "./client"; // adds the login token; logs out on 401
 
-const API = import.meta.env.VITE_API_URL;
+const API = import.meta.env.VITE_API_URL|| "http://localhost:8000";
 
 async function get(endpoint, params = {}, options = {}) {
     const query = new URLSearchParams();

@@ -24,22 +24,26 @@ ALL_TABS = [
 ]
 
 # VIEW access: which tabs (and the API paths behind them) a role can open.
-# Exports are plain GET requests, so anyone who can view a tab can export it.
+# Viewing does NOT imply exporting: see ROLES_CAN_EXPORT below.
 ROLE_TABS = {
     "Admin":      ALL_TABS + ["users"],
-    "Power-User": ALL_TABS,
-    "Read-Only":  ALL_TABS,
-    "Finance":    ["finance", "villa_fees", "guest_revenue", "forecast"],
+    "Power-User": ["overview","demographics","villa_fees"],
+    "Read-Only":  ["overview","demographics","villa_fees"],
+    "Finance":    ["overview", "finance", "villa_fees", "guest_revenue", "forecast"],
 }
 
+# EXPORT access: which roles may download/export data (see role_can_export).
+# Read-Only is deliberately left out. Role names must match the database exactly.
+ROLES_CAN_EXPORT = {"Admin", "Power-User", "Finance"}
+
 # EDIT access: tabs where the role may also make changes (POST/PUT/PATCH/DELETE).
-# read_only has none, so it can never change anything.
+# Read-Only has none, so it can never change anything.
 # A write to an unmapped path (tab None) is allowed for admin only.
 ROLE_EDIT_TABS = {
     "Admin":      ALL_TABS + ["users"],
-    "Power-User": ALL_TABS,
+    "Power-User": ["overview","demographics","villa_fees"],
     "Read-Only":  [],
-    "Finance":    ["finance", "villa_fees", "guest_revenue", "forecast"],
+    "Finance":    ["overview","finance", "villa_fees", "guest_revenue", "forecast"],
 }
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -100,3 +104,8 @@ def role_can_edit(role: str, tab) -> bool:
     if tab is None:
         return role == "Admin"
     return tab in ROLE_EDIT_TABS.get(role, [])
+
+
+def role_can_export(role: str) -> bool:
+    """May this role download/export data? (Read-Only may not.)"""
+    return role in ROLES_CAN_EXPORT
