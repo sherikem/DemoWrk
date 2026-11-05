@@ -43,6 +43,8 @@ import {
   Home,
   UserCog,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import VillaFeesTab from "./VillaFeesTab";
 import { useAuth } from "../auth/AuthContext";
@@ -62,8 +64,7 @@ import {
   PieLegendCard,
   RoomHighlightCard,
 } from "./styles/Dashboardcomponents";
-import SeasonFilterBar from "./mltab/SeasonFilterBar";
-import AmenitySeasonPanel from "./mltab/AmenitySeasonPanel";
+
 import SegmentationPanel from "./mltab/Segmentationpanel";
 import MarketingTargetingPanel from "./mltab/MarketingTargetingPanel";
 import "./styles/styles.css";
@@ -81,6 +82,9 @@ import GuestRevenueTab from "./GuestRevenueTab";
 // Reservations Forecast — imported "Summary of Reservations Forecast" workbook
 import ForecastTab from "./forecast/ForecastTab";
 
+import SeasonalDemandPanel from "./mltab/SeasonalDemandPanel";
+import { subscribeLoading } from "../api/loadingTracker";
+import LoadingOverlay from "./styles/LoadingOverlay";
 /* ─── Sidebar nav config ─────────────────────────────────────── */
 const TABS = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
@@ -89,7 +93,7 @@ const TABS = [
   { id: "finance", label: "Finance", Icon: DollarSign },
   { id: "reports", label: "Reports", Icon: BookOpen },
   { id: "market", label: "Marketing Targeting", Icon: PartyPopper },
-  { id: "ml", label: "ML Insights", Icon: Sparkles },
+  { id: "ml", label: "Seasonal Demand", Icon: Sparkles },
   { id: "villa_fees", label: "Annual Fees", Icon: Home },
   { id: "guest_revenue", label: "Guest Revenue", Icon: TrendingUp },
   { id: "lead_time", label: "Lead Time", Icon: Clock },
@@ -103,7 +107,7 @@ const SUB = {
   finance: "Outstanding balances and spend breakdown",
   reports: "View and filter raw report data",
   market: "Analysis and Insights on market Targeting",
-  ml: "Segmentation, amenity insights and campaign recommendations — all monetary figures in $USD",
+  ml: "Villa, bedroom and amenity demand by month and by your own seasons",
   villa_fees:
     "Maintenance, Capital Expenditure and membership dues billed per villa",
   guest_revenue:
@@ -136,7 +140,9 @@ export default function Dashboard() {
     return tabs;
   }, [user]);
   const [activeTab, setActiveTab] = useState(() =>
-    (user?.tabs ?? []).includes("overview") ? "overview" : (user?.tabs?.[0] ?? "overview"),
+    (user?.tabs ?? []).includes("overview")
+      ? "overview"
+      : (user?.tabs?.[0] ?? "overview"),
   );
   // Links between tabs (e.g. Overview cards) only go to tabs the user can open.
   const goToTab = (id) => {
@@ -144,6 +150,9 @@ export default function Dashboard() {
   };
   const [activeSeasonGroup, setActiveSeasonGroup] = useState(null);
 
+  //loading
+  const [pending, setPending] = useState(0);
+  useEffect(() => subscribeLoading(setPending), []);
   // Overview tab date-range filter (added 2026-06-26) — reuses the exact
   // same shape/component the Finance tab already uses (FinanceShared.jsx),
   // so the two tabs' period pickers stay visually and behaviorally
@@ -225,6 +234,8 @@ export default function Dashboard() {
   const [memberDuesSummary, setMemberDuesSummary] = useState(null);
   const [emailOnFile, setEmailOnFile] = useState(null);
   const [rackRateSummary, setRackRateSummary] = useState(null);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     // ── Non-Overview data: members by country/state/gender/age, dependents
@@ -515,21 +526,60 @@ export default function Dashboard() {
   return (
     <div className="dashboard-shell">
       {/* ── Sidebar ───────────────────────────────────────────── */}
-      <aside className="dashboard-sidebar hidden lg:flex w-64 shrink-0 flex-col gap-1 border-r px-5 py-7">
-        {/* Nav */}
-        <div className="mb-8 flex items-center gap-3"></div>
+      {/* ── Sidebar ───────────────────────────── */}
+      <aside
+        className={`dashboard-sidebar hidden lg:flex shrink-0 flex-col
+    border-r py-7 transition-all duration-300 ease-in-out
+    ${sidebarCollapsed ? "w-20 px-3" : "w-64 px-5"}`}
+      >
+        {/* Collapse / Expand Button */}
+        <div
+          className={`mb-8 flex items-center ${
+            sidebarCollapsed ? "justify-center" : "justify-end"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            className="dashboard-sidebar-toggle"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={20} />
+            ) : (
+              <PanelLeftClose size={20} />
+            )}
+          </button>
+        </div>
 
+        {/* Navigation */}
         <nav className="flex flex-col gap-1.5">
           {visibleTabs.map(({ id, label, Icon }) => {
             const active = activeTab === id;
+
             return (
               <button
                 key={id}
+                type="button"
                 onClick={() => setActiveTab(id)}
-                className={`dashboard-nav-button flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors text-left w-full ${active ? "is-active" : ""}`}
+                title={sidebarCollapsed ? label : undefined}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                className={`dashboard-nav-button flex items-center
+            rounded-xl py-2.5 text-sm transition-colors
+            w-full ${
+              sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3 text-left"
+            } ${active ? "is-active" : ""}`}
               >
-                <Icon className="dashboard-nav-icon" />
-                <span className="dashboard-nav-label">{label}</span>
+                <Icon className="dashboard-nav-icon shrink-0" />
+
+                {!sidebarCollapsed && (
+                  <span className="dashboard-nav-label">{label}</span>
+                )}
               </button>
             );
           })}
@@ -537,7 +587,12 @@ export default function Dashboard() {
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────── */}
-      <main className="dashboard-main flex-1 px-6 py-7 lg:px-10">
+      <main
+        className="dashboard-main flex-1 px-6 py-7 lg:px-10"
+        style={{ position: "relative" }}
+        aria-busy={pending > 0}
+      >
+        <LoadingOverlay show={pending > 0} text="Loading…" />
         {/* Topbar */}
         <header className="dashboard-topbar">
           <div className="dashboard-topbar-copy">
@@ -549,13 +604,18 @@ export default function Dashboard() {
             <p className="dashboard-page-subtitle">{SUB[activeTab]}</p>
           </div>
           <div className="dashboard-topbar-actions">
-            <span className="dashboard-page-subtitle" title={`Role: ${user?.role}`}>
+            <span
+              className="dashboard-page-subtitle"
+              title={`Role: ${user?.role}`}
+            >
               {user?.full_name || user?.username}
             </span>
-            <button className="dashboard-icon-button">
-              <Bell style={{ width: 16, height: 16 }} />
-            </button>
-            <button className="dashboard-icon-button" onClick={logout} title="Log out" aria-label="Log out">
+            <button
+              className="dashboard-icon-button"
+              onClick={logout}
+              title="Log out"
+              aria-label="Log out"
+            >
               <LogOut style={{ width: 16, height: 16 }} />
             </button>
           </div>
@@ -1230,13 +1290,8 @@ export default function Dashboard() {
         {/* ════ ML INSIGHTS ════ */}
         {activeTab === "ml" && (
           <div className="dashboard-section">
-            <SectionLabel>Season Filters</SectionLabel>
-            <ErrorBoundary title="Season Filter Bar">
-              <SeasonFilterBar onSeasonGroupChange={setActiveSeasonGroup} />
-            </ErrorBoundary>
-            <SectionLabel>Amenity Season Analysis</SectionLabel>
-            <ErrorBoundary title="Amenity Season Insights">
-              <AmenitySeasonPanel seasonGroupId={activeSeasonGroup?.id} />
+            <ErrorBoundary title="Seasonal Demand">
+              <SeasonalDemandPanel />
             </ErrorBoundary>
           </div>
         )}

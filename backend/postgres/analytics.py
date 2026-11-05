@@ -27,6 +27,7 @@ from .analytics_villas import router as villas_router
 from .analytics_demographics import router as demographics_router
 from .analytics_marketing import router as marketing_router
 from .analytics_lead_time import router as lead_time_router
+from .analytics_seasonal_demand import router as seasonal_demand_router
 
 router = APIRouter()
 
@@ -38,3 +39,5 @@ router.include_router(villas_router)
 router.include_router(demographics_router)
 router.include_router(marketing_router)
 router.include_router(lead_time_router)
+
+router.include_router(seasonal_demand_router)

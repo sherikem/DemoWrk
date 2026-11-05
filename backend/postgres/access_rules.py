@@ -42,7 +42,7 @@ TAB_LABELS = {
     "finance":       "Finance",
     "reports":       "Reports",
     "market":        "Marketing Targeting",
-    "ml":            "ML Insights",
+    "ml":            "Seasonal Demand",
     "villa_fees":    "Annual Fees",
     "guest_revenue": "Guest Revenue",
     "lead_time":     "Lead Time",

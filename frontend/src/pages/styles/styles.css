@@ -396,3 +396,119 @@
   right: 0;
   transform: none;
 }
+
+/* Spinner */
+.loader {
+  --d: 22px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  color: #25b09b;
+  box-shadow:
+    calc(1 * var(--d)) calc(0 * var(--d)) 0 0,
+    calc(0.707 * var(--d)) calc(0.707 * var(--d)) 0 1px,
+    calc(0 * var(--d)) calc(1 * var(--d)) 0 2px,
+    calc(-0.707 * var(--d)) calc(0.707 * var(--d)) 0 3px,
+    calc(-1 * var(--d)) calc(0 * var(--d)) 0 4px,
+    calc(-0.707 * var(--d)) calc(-0.707 * var(--d)) 0 5px,
+    calc(0 * var(--d)) calc(-1 * var(--d)) 0 6px;
+  animation: l27 1s infinite steps(8);
+}
+@keyframes l27 {
+  100% {
+    transform: rotate(1turn);
+  }
+}
+
+/* Overlay */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: min(35vh, 300px);
+
+  gap: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(2px);
+  border-radius: inherit;
+  animation: overlay-in 0.15s ease;
+}
+.loading-overlay.is-fullscreen {
+  position: fixed;
+  z-index: 1000;
+}
+.loading-overlay-text {
+  font-size: 12px;
+  color: #5d7284;
+  margin-top: 18px;
+}
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation-duration: 3s;
+  }
+}
+
+.dashboard-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+
+.dashboard-main {
+  position: relative;
+  min-width: 0;
+  isolation: isolate;
+}
+
+/* Sidebar animation */
+.dashboard-sidebar {
+  overflow-x: hidden;
+  transition:
+    width 300ms ease,
+    padding 300ms ease;
+}
+
+/* Collapse / Expand toggle */
+.dashboard-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ddd6ca;
+  border-radius: 10px;
+  background: #f7f3ec;
+  color: #2c3b4d;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dashboard-sidebar-toggle:hover {
+  background: #2c3b4d;
+  color: #ffb162;
+}
+
+/* Keep navigation icons consistent */
+.dashboard-nav-icon {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+}
+
+/* Prevent label wrapping */
+.dashboard-nav-label {
+  white-space: nowrap;
+}
